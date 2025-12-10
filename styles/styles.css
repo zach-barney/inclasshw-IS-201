@@ -1,0 +1,38 @@
+body{
+    background-color: blue; 
+    color:rgb(255, 255, 0);
+}
+
+h1{
+    font-size:36px;
+    color:azure;
+    text-align:center
+}
+
+h2{
+    text-align:center
+}
+h3{
+    text-align:center
+}
+
+h4{
+    text-align:center;
+    font-style:italic;
+    font-weight:bold;
+}
+
+p{
+    font-size:18px;
+}
+#greenparagraph{
+    color: green
+}
+
+.yummy{
+    text-decoration: underline;
+}
+
+.greentext{
+    color: green
+}

@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Red Snake — Mosquito Hunt</title>
+  <style>
+    :root{
+      --water1: #1e90ff;
+      --water2: #0066cc;
+      --panel: rgba(255,255,255,0.9);
+      --accent: #ff4d4d;
+      --muted: rgba(0,0,0,0.6);
+      --glass: rgba(255,255,255,0.12);
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(255,255,255,0.03), transparent 10%),
+        linear-gradient(180deg, #e6f3ff 0%, #cfe8ff 100%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .container{
+      width: min(920px, 96vw);
+      max-width: 980px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.95));
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(20,40,80,0.15);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap:1px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    /* Left: game area */
+    .game-area{
+      position: relative;
+      background: linear-gradient(180deg, var(--water1), var(--water2));
+      padding: 18px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:520px;
+    }
+
+    canvas{
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(255,255,255,0.03) 0px,
+        rgba(255,255,255,0.03) 6px,
+        rgba(0,0,0,0.02) 6px,
+        rgba(0,0,0,0.02) 12px
+      );
+      border-radius:10px;
+      box-shadow: 0 8px 20px rgba(10,20,40,0.12);
+      image-rendering: pixelated; /* crisp grid look */
+    }
+
+    /* Right: controls & info */
+    .panel{
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(245,245,245,0.98));
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .logo{
+      width:48px;height:48px;border-radius:10px;background:linear-gradient(180deg,var(--accent),#cc3a3a);
+      display:grid;place-items:center;color:white;font-weight:700;font-size:20px;box-shadow:0 6px 14px rgba(255,77,77,0.18);
+    }
+    h1{
+      margin:0;font-size:18px;
+      letter-spacing:0.2px;
+    }
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+
+    .stat-row{
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    }
+    .stat{
+      background:var(--glass);
+      border-radius:10px;
+      padding:10px 12px;
+      min-width:96px;
+      text-align:center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .stat b{display:block;font-size:18px}
+    .controls{
+      display:flex;gap:10px;flex-wrap:wrap;
+    }
+    button{
+      background:linear-gradient(180deg,#fff,#f7f7f7);
+      border:1px solid rgba(0,0,0,0.06);
+      padding:8px 12px;border-radius:8px;
+      cursor:pointer;font-weight:600;
+      box-shadow: 0 4px 8px rgba(20,40,80,0.06);
+    }
+    button.primary{
+      background: linear-gradient(180deg,var(--accent), #cc3a3a);
+      color:white;border:0;
+    }
+    .small{
+      font-size:12px;padding:6px 8px;border-radius:6px;
+    }
+    .note{font-size:12px;color:var(--muted)}
+    .footer{
+      margin-top:auto;font-size:12px;color:var(--muted);
+    }
+    .kbd{
+      display:inline-block;background:rgba(0,0,0,0.06);padding:4px 8px;border-radius:6px;font-weight:700;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width:880px){
+      .container{grid-template-columns: 1fr; max-width: 96vw;}
+      .panel{order:2}
+      .game-area{order:1;min-height:420px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Red Snake Mosquito Hunt game">
+    <div class="game-area">
+      <canvas id="game" width="640" height="640" aria-label="Game canvas"></canvas>
+    </div>
+
+    <aside class="panel" aria-hidden="false">
+      <div class="title">
+        <div class="logo">S</div>
+        <div>
+          <h1>Red Snake — Mosquito Hunt</h1>
+          <p class="lead">Guide the red snake through the water and eat mosquitoes to score.</p>
+        </div>
+      </div>
+
+      <div class="stat-row" aria-hidden="false">
+        <div class="stat">
+          <div class="note">Score</div>
+          <b id="score">0</b>
+        </div>
+        <div class="stat">
+          <div class="note">High Score</div>
+          <b id="hi">0</b>
+        </div>
+        <div class="stat">
+          <div class="note">Speed</div>
+          <b id="spd">1x</b>
+        </div>
+      </div>
+
+      <div class="controls" role="group" aria-label="Game controls">
+        <button id="startBtn" class="primary">Start</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="resetBtn" class="small">Restart</button>
+        <button id="muteBtn" class="small">Mute</button>
+      </div>
+
+      <div>
+        <p class="note">Controls: <span class="kbd">↑ ↓ ← →</span> or <span class="kbd">W A S D</span>. Swipe on mobile.</p>
+        <p class="note">Mosquitos move and flap — eat them! Avoid running into yourself or the walls.</p>
+      </div>
+
+      <div class="footer">
+        <div><strong>Tips:</strong> Speed increases gradually. Eat mosquitoes to grow. Press <kbd>Space</kbd> to pause.</div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+  /* --------------------------
+     Configuration and state
+     -------------------------- */
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  // Grid definition (pixel-perfect blocks)
+  const GRID_SIZE = 20; // number of cells across (canvas width / cellSize)
+  let cellSize = Math.floor(canvas.width / GRID_SIZE);
+
+  // Game variables (stateful)
+  let snake = [{x:8, y:8}, {x:7, y:8}, {x:6, y:8}]; // array of segments (head first)
+  let dir = {x:1, y:0}; // moving right initially
+  let nextDir = {x:1, y:0};
+  let mosquitoes = []; // array of mosquito objects
+  let score = 0;
+  let highScore = localStorage.getItem('redSnakeHigh') ? parseInt(localStorage.getItem('redSnakeHigh')) : 0;
+  let stepInterval = 150; // ms per step (lower is faster)
+  const MIN_INTERVAL = 60;
+  let running = false;
+  let paused = false;
+  let lastStepTime = 0;
+  let speedMultiplier = 1;
+  let tick = 0;
+
+  // UI elements
+  const scoreEl = document.getElementById('score');
+  const hiEl = document.getElementById('hi');
+  const spdEl = document.getElementById('spd');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const muteBtn = document.getElementById('muteBtn');
+
+  hiEl.textContent = highScore;
+
+  // sound effects (tiny beep using WebAudio)
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let muted = true; // default muted to not surprise
+
+  function playBeep(freq = 440, time = 0.06, gainVal = 0.06){
+    if(muted) return;
+    const g = audioCtx.createGain();
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.value = gainVal;
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + time);
+  }
+
+  /* --------------------------
+     Resize & layout helpers
+     -------------------------- */
+  function resizeCanvasToFit(){
+    // Keep canvas square and responsive while preserving cell size
+    const container = canvas.parentElement;
+    const maxDim = Math.min(container.clientWidth - 40, window.innerHeight - 80);
+    const size = Math.max(320, Math.floor(maxDim));
+    canvas.width = size;
+    canvas.height = size;
+    cellSize = Math.floor(canvas.width / GRID_SIZE);
+  }
+  window.addEventListener('resize', () => {
+    resizeCanvasToFit();
+    render(); // repaint
+  });
+  resizeCanvasToFit();
+
+  /* --------------------------
+     Game mechanics
+     -------------------------- */
+  function resetGame(){
+    snake = [{x:8, y:8}, {x:7, y:8}, {x:6, y:8}];
+    dir = {x:1, y:0};
+    nextDir = {x:1, y:0};
+    mosquitoes = [];
+    score = 0;
+    stepInterval = 150;
+    speedMultiplier = 1;
+    running = false;
+    paused = false;
+    tick = 0;
+    updateUI();
+    spawnMosquito();
+    render();
+  }
+
+  function startGame(){
+    if(!running){
+      running = true;
+      paused = false;
+      lastStepTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+  }
+
+  function pauseGame(toggle){
+    if(typeof toggle === 'boolean') paused = toggle;
+    else paused = !paused;
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    if(!paused && running){
+      lastStepTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+  }
+
+  function endGame(){
+    running = false;
+    paused = false;
+    playBeep(120, 0.3, 0.12);
+    if(score > highScore){
+      highScore = score;
+      localStorage.setItem('redSnakeHigh', highScore);
+      hiEl.textContent = highScore;
+    }
+    // show a simple overlay
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.26)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.font = Math.floor(canvas.width / 16) + 'px sans-serif';
+    ctx.fillText('Game Over', canvas.width/2, canvas.height/2 - 20);
+    ctx.font = Math.floor(canvas.width / 30) + 'px sans-serif';
+    ctx.fillText('Click Restart or Press Start to Play Again', canvas.width/2, canvas.height/2 + 18);
+    ctx.restore();
+  }
+
+  // spawn a mosquito at a random empty cell
+  function spawnMosquito(){
+    const attempts = 100;
+    for(let i=0;i<attempts;i++){
+      const mx = Math.floor(Math.random() * GRID_SIZE);
+      const my = Math.floor(Math.random() * GRID_SIZE);
+      if(!cellOccupied(mx,my)){
+        mosquitoes.push({
+          x: mx,
+          y: my,
+          wobble: Math.random()*Math.PI*2,
+          dir: Math.random() < 0.5 ? 1 : -1,
+          wingPhase: Math.random()*Math.PI*2,
+          speed: Math.random()*0.05 + 0.02
+        });
+        return;
+      }
+    }
+    // if failed to find an empty cell, do nothing
+  }
+
+  function cellOccupied(x,y){
+    // check snake
+    for(const s of snake) if(s.x === x && s.y === y) return true;
+    // check mosquitoes
+    for(const m of mosquitoes) if(m.x === x && m.y === y) return true;
+    return false;
+  }
+
+  // move snake by one cell according to direction
+  function step(){
+    // update dir from nextDir (but prevent 180-degree reversal)
+    if(!(nextDir.x === -dir.x && nextDir.y === -dir.y)){
+      dir = {...nextDir};
+    }
+
+    const newHead = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+    // collisions with walls
+    if(newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE){
+      endGame();
+      return;
+    }
+
+    // collisions with self
+    for(const segment of snake){
+      if(segment.x === newHead.x && segment.y === newHead.y){
+        endGame();
+        return;
+      }
+    }
+
+    // add new head
+    snake.unshift(newHead);
+
+    // check mosquito eat
+    let ate = false;
+    for(let i=0;i<mosquitoes.length;i++){
+      const m = mosquitoes[i];
+      if(m.x === newHead.x && m.y === newHead.y){
+        ate = true;
+        mosquitoes.splice(i,1);
+        score += 1;
+        playBeep(880 - Math.min(400, score*6), 0.05, 0.06);
+        // speed up slightly
+        stepInterval = Math.max(MIN_INTERVAL, stepInterval - 3);
+        if(Math.random() < 0.75) spawnMosquito();
+        break;
+      }
+    }
+
+    if(!ate){
+      // remove tail (move without growing)
+      snake.pop();
+    } else {
+      // grow: do not remove tail; maybe spawn extra mosquito sometimes
+      if(Math.random() < 0.25) spawnMosquito();
+    }
+
+    // update mosquitoes movement (they flutter but mostly stay near their cell)
+    for(const m of mosquitoes){
+      m.wobble += m.speed * (Math.random()*1.4 + 0.6);
+      m.wingPhase += 0.6 + Math.random()*0.3;
+      // occasionally hop to nearby cell
+      if(Math.random() < 0.02){
+        const nx = Math.max(0, Math.min(GRID_SIZE-1, m.x + (Math.random()<0.5? -1:1)));
+        const ny = Math.max(0, Math.min(GRID_SIZE-1, m.y + (Math.random()<0.5? -1:1)));
+        if(!cellOccupied(nx,ny)) { m.x = nx; m.y = ny; }
+      }
+    }
+
+    // Score effects
+    tick++;
+    if(tick % 40 === 0){
+      spawnMosquito();
+    }
+
+    // update UI
+    updateUI();
+  }
+
+  /* --------------------------
+     Rendering
+     -------------------------- */
+  function render(){
+    // clear
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // draw water background gradient & subtle waves
+    drawWaterBackground();
+
+    // draw grid (subtle)
+    drawGridLines();
+
+    // draw mosquitoes
+    for(const m of mosquitoes){
+      drawMosquito(m);
+    }
+
+    // draw snake: draw body from tail to head for nicer layering
+    for(let i = snake.length - 1; i >= 0; i--){
+      const s = snake[i];
+      const isHead = (i === 0);
+      drawSnakeSegment(s.x, s.y, isHead, i);
+    }
+
+    // overlay: score small in corner of canvas
+    ctx.save();
+    ctx.font = Math.max(12, Math.floor(cellSize * 0.65)) + 'px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Score: ' + score, 8, 20);
+    ctx.restore();
+  }
+
+  function drawWaterBackground(){
+    // subtle diagonal light bands to simulate water surface (already in CSS background).
+    // Add a soft vignette for depth
+    const g = ctx.createLinearGradient(0,0,0,canvas.height);
+    g.addColorStop(0, 'rgba(255,255,255,0.02)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.06)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // draw subtle wave arcs for motion
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    for(let i=0;i<6;i++){
+      ctx.beginPath();
+      const amp = 6 + i*2;
+      for(let x=0;x<canvas.width+20;x+=8){
+        const y = 20 + i*30 + Math.sin((x/50) + performance.now()/1500 + i) * amp;
+        if(x===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGridLines(){
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1;
+    for(let i=0;i<=GRID_SIZE;i++){
+      const pos = i * cellSize;
+      // vertical
+      ctx.beginPath();
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos, canvas.height);
+      ctx.stroke();
+      // horizontal
+      ctx.beginPath();
+      ctx.moveTo(0, pos);
+      ctx.lineTo(canvas.width, pos);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawSnakeSegment(gx, gy, isHead, index){
+    const px = gx * cellSize;
+    const py = gy * cellSize;
+    const pad = Math.max(2, Math.floor(cellSize * 0.12));
+    const w = cellSize - pad*2;
+    const h = cellSize - pad*2;
+
+    // body shading
+    const grad = ctx.createLinearGradient(px, py, px + w, py + h);
+    grad.addColorStop(0, '#ff6b6b');
+    grad.addColorStop(1, '#c92a2a');
+    ctx.fillStyle = grad;
+    roundRect(ctx, px + pad, py + pad, w, h, Math.max(4, Math.floor(cellSize*0.14)), true, false);
+
+    // add subtle inner shine
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    roundRect(ctx, px + pad + 2, py + pad + 2, w - 4, h/2 - 2, Math.max(3, Math.floor(cellSize*0.12)), true, false);
+    ctx.restore();
+
+    // eyes for head
+    if(isHead){
+      ctx.save();
+      ctx.fillStyle = '#2b2b2b';
+      const eyeSize = Math.max(2, Math.floor(cellSize*0.11));
+      const ex = px + pad + Math.floor(w*0.65);
+      const ey1 = py + pad + Math.floor(h*0.3);
+      const ey2 = py + pad + Math.floor(h*0.7);
+      // direction offset for eyes to look where moving
+      const lookOffsetX = Math.max(-2, Math.min(2, dir.x * 4));
+      const lookOffsetY = Math.max(-2, Math.min(2, dir.y * 4));
+      ctx.beginPath(); ctx.arc(ex + lookOffsetX, ey1 + lookOffsetY, eyeSize, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex + lookOffsetX, ey2 + lookOffsetY, eyeSize, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // mosquito drawing (simple stylized bug)
+  function drawMosquito(m){
+    const px = m.x * cellSize + cellSize/2;
+    const py = m.y * cellSize + cellSize/2;
+    const r = Math.max(3, Math.floor(cellSize * 0.18));
+
+    ctx.save();
+    // small bobbing motion from wobble
+    const wob = Math.sin(m.wobble) * (cellSize * 0.12);
+    // body
+    ctx.translate(px, py + wob);
+    ctx.rotate(Math.sin(m.wobble*0.6) * 0.3);
+    // wings (animated)
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    const wingFlap = Math.sin(m.wingPhase) * (r*0.9);
+    ctx.beginPath();
+    ctx.ellipse(-r*0.3, -r*0.8 - wingFlap*0.1, r*0.6, r*0.25 + Math.abs(wingFlap*0.05), 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.86)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(-r*0.3, r*0.8 + wingFlap*0.1, r*0.6, r*0.25 + Math.abs(wingFlap*0.05), 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // head + body + legs
+    ctx.beginPath();
+    ctx.fillStyle = '#111';
+    ctx.ellipse(0, 0, r*0.9, r*0.7, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // proboscis
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = Math.max(1, Math.floor(cellSize*0.04));
+    ctx.beginPath();
+    ctx.moveTo(r*0.8, 0);
+    ctx.lineTo(r*1.6, 0.5);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // utility: rounded rectangle
+  function roundRect(ctx, x, y, w, h, r, fill=true, stroke=true){
+    const radius = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+    if(fill) ctx.fill();
+    if(stroke) ctx.stroke();
+  }
+
+  /* --------------------------
+     Main loop
+     -------------------------- */
+  function loop(now){
+    if(!running) return;
+    if(paused){
+      requestAnimationFrame(loop);
+      return;
+    }
+
+    const delta = now - lastStepTime;
+    if(delta >= stepInterval){
+      step();
+      render();
+      lastStepTime = now;
+    } else {
+      // still render small animations (mosquito wings)
+      render();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* --------------------------
+     Input handling
+     -------------------------- */
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { nextDir = {x:0,y:-1}; e.preventDefault(); }
+    else if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') { nextDir = {x:0,y:1}; e.preventDefault(); }
+    else if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { nextDir = {x:-1,y:0}; e.preventDefault(); }
+    else if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { nextDir = {x:1,y:0}; e.preventDefault(); }
+    else if(e.code === 'Space') { pauseGame(); e.preventDefault(); }
+    else if(e.key === 'm' || e.key === 'M') { toggleMute(); }
+  });
+
+  // basic touch swipe support
+  let touchStart = null;
+  canvas.addEventListener('touchstart', (ev) => {
+    const t = ev.touches[0];
+    touchStart = {x:t.clientX, y:t.clientY, time: Date.now()};
+  }, {passive:true});
+
+  canvas.addEventListener('touchend', (ev) => {
+    if(!touchStart) return;
+    const t = ev.changedTouches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const threshold = 30;
+    if(Math.max(absX, absY) > threshold){
+      if(absX > absY){
+        nextDir = dx > 0 ? {x:1,y:0} : {x:-1,y:0};
+      } else {
+        nextDir = dy > 0 ? {x:0,y:1} : {x:0,y:-1};
+      }
+    } else {
+      // small tap = pause toggle
+      pauseGame();
+    }
+    touchStart = null;
+  }, {passive:true});
+
+  // mouse click on canvas: if not running, start
+  canvas.addEventListener('click', () => {
+    if(!running) startGame();
+  });
+
+  /* --------------------------
+     UI wiring
+     -------------------------- */
+  startBtn.addEventListener('click', () => {
+    if(!running) { startGame(); startBtn.textContent = 'Playing'; startBtn.classList.remove('primary'); }
+    else { pauseGame(false); }
+  });
+  pauseBtn.addEventListener('click', () => { pauseGame(); });
+  resetBtn.addEventListener('click', () => { resetGame(); startBtn.textContent = 'Start'; startBtn.classList.add('primary'); });
+  muteBtn.addEventListener('click', () => { toggleMute(); });
+
+  function toggleMute(){
+    muted = !muted;
+    try{ if(!muted && audioCtx.state === 'suspended') audioCtx.resume(); } catch(e){}
+    muteBtn.textContent = muted ? 'Unmute' : 'Mute';
+  }
+
+  function updateUI(){
+    scoreEl.textContent = score;
+    hiEl.textContent = highScore;
+    const spd = Math.round(150 / stepInterval * 10) / 10;
+    spdEl.textContent = spd + 'x';
+  }
+
+  /* --------------------------
+     Initialize & start
+     -------------------------- */
+  resetGame();
+  render();
+
+  // expose a tiny cheat: grow snake by pressing G (for fun)
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'g' || e.key === 'G'){
+      // add a segment to tail
+      const tail = snake[snake.length - 1];
+      snake.push({x: tail.x, y: tail.y});
+      score += 1;
+      updateUI();
+      render();
+    }
+  });
+
+  // Save high score on unload
+  window.addEventListener('beforeunload', () => {
+    localStorage.setItem('redSnakeHigh', highScore);
+  });
+  </script>
+</body>
+</html>
+
